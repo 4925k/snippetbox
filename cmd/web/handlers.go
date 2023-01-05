@@ -40,7 +40,9 @@ func (app *application) showSnippet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := &templateData{Snippet: s}
+	data := &templateData{
+		Snippet: s,
+	}
 	app.render(w, r, "show.page.tmpl", data)
 }
 
@@ -74,10 +76,13 @@ func (app *application) createSnippet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// use session manager to flash a message
+	app.session.Put(r, "flash", "Snippet created successfully!")
+
 	http.Redirect(w, r, fmt.Sprintf("/snippet/%d", id), http.StatusSeeOther)
 }
 
 // createSnippet creates a requested snippet
 func (app *application) createSnippetForm(w http.ResponseWriter, r *http.Request) {
-	app.render(w, r, "create.page.tmpl", nil)
+	app.render(w, r, "create.page.tmpl", &templateData{Form: forms.New(nil)})
 }
