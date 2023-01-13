@@ -41,3 +41,14 @@ INSERT INTO snippets (title, content, created, expires) VALUES (
 -- CREATE A NEW USER
 CREATE USER 'web'@'localhost' IDENTIFIED BY 'Password@123';
 GRANT SELECT, INSERT ON snippetbox.* TO 'web'@'localhost';
+
+
+USE snippetbox;
+CREATE TABLE users (
+    id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    hashed_password CHAR(60) NOT NULL,
+    created DATETIME NOT NULL
+);
+ALTER TABLE users ADD CONSTRAINT users_uc_email UNIQUE (email);

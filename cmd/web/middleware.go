@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+
+	"github.com/4925k/snippetbox/pkg/models"
+	"github.com/justinas/nosurf"
 )
 
 // secureHeaders adds security headers to the response
@@ -36,5 +40,53 @@ func (app *application) recoverPanic(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
 
+// requireAuthenticatedUser checks whether the session has an authenticated user
+func (app *application) requireAuthenticatedUser(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if app.authenticatedUser(r) == nil {
+			http.Redirect(w, r, "/user/login", http.StatusSeeOther)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// user a customized csrf cookie with sercure, path and httponly flags set
+func noSurf(next http.Handler) http.Handler {
+	csrfHandler := nosurf.New(next)
+
+	csrfHandler.SetBaseCookie(http.Cookie{
+		HttpOnly: true,
+		Path:     "/",
+		Secure:   true,
+	})
+
+	return csrfHandler
+}
+
+func (app *application) authenticate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		exists := app.session.Exists(r, "userID")
+		if !exists {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		user, err := app.users.Get(app.session.GetInt(r, "userID"))
+		if err == models.ErrNoRecord {
+			app.session.Remove(r, "userID")
+			next.ServeHTTP(w, r)
+			return
+		} else if err != nil {
+			app.serverError(w, err)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), contextKeyUser, user)
+		next.ServeHTTP(w, r.WithContext(ctx))
+
+	})
 }

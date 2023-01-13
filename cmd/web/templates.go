@@ -10,11 +10,13 @@ import (
 )
 
 type templateData struct {
-	CurrentYear int
-	Snippet     *models.Snippet
-	Snippets    []*models.Snippet
-	Form        *forms.Form
-	Flash       string
+	AuthenticatedUser *models.User
+	CSRFToken         string
+	CurrentYear       int
+	Snippet           *models.Snippet
+	Snippets          []*models.Snippet
+	Form              *forms.Form
+	Flash             string
 }
 
 var functions = template.FuncMap{
@@ -23,7 +25,11 @@ var functions = template.FuncMap{
 
 // humanDate returns the given time in a human readable string format
 func humanDate(t time.Time) string {
-	return t.Format("02 Jan 2006 at 15:04")
+	if t.IsZero() {
+		return ""
+	}
+
+	return t.UTC().Format("02 Jan 2006 at 15:04")
 }
 
 func newTemplateCache(dir string) (map[string]*template.Template, error) {

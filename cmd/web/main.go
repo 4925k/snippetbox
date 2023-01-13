@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"database/sql"
 	"flag"
 	"html/template"
@@ -9,16 +10,37 @@ import (
 	"os"
 	"time"
 
+	"github.com/4925k/snippetbox/pkg/models"
 	"github.com/4925k/snippetbox/pkg/models/mysql"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/golangcollege/sessions"
 )
 
+type contextKey string
+
+var contextKeyUser = contextKey("user")
+
 type application struct {
-	errorLog      *log.Logger
-	infoLog       *log.Logger
-	session       *sessions.Session
-	snippets      *mysql.SnippetModel
+	// logger
+	errorLog *log.Logger
+	infoLog  *log.Logger
+
+	// session manager
+	session *sessions.Session
+
+	// db
+	snippets interface {
+		Insert(string, string, string) (int, error)
+		Get(int) (*models.Snippet, error)
+		Latest() ([]*models.Snippet, error)
+	}
+	users interface {
+		Insert(string, string, string) error
+		Authenticate(string, string) (int, error)
+		Get(int) (*models.User, error)
+	}
+
+	// cache
 	templateCache map[string]*template.Template
 }
 
@@ -51,6 +73,7 @@ func main() {
 	session := sessions.New([]byte(*secret))
 	session.Lifetime = 12 * time.Hour
 	session.Secure = true
+	session.SameSite = http.SameSiteStrictMode
 
 	// init application
 	app := &application{
@@ -58,14 +81,26 @@ func main() {
 		infoLog:       infoLog,
 		session:       session,
 		snippets:      &mysql.SnippetModel{DB: db},
+		users:         &mysql.UserModel{DB: db},
 		templateCache: templateCache,
+	}
+
+	// set server's tls config
+	tlsConfig := &tls.Config{
+		PreferServerCipherSuites: true,
+		CurvePreferences:         []tls.CurveID{tls.X25519, tls.CurveP256},
 	}
 
 	// init server
 	srv := &http.Server{
-		Addr:     *addr,
-		ErrorLog: errorLog,
-		Handler:  app.routes(),
+		Addr:      *addr,
+		ErrorLog:  errorLog,
+		Handler:   app.routes(),
+		TLSConfig: tlsConfig,
+
+		IdleTimeout:  time.Minute,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
 	}
 
 	// start the server at a port 4000
